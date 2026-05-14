@@ -610,73 +610,36 @@ function connectSupabase(url, key){
 }
 
 async function doSetup(){
-  // Normalize URL — remove trailing slash, /rest/v1, etc.
-  let url = document.getElementById('sb-url').value.trim();
-  url = url.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-  const key = document.getElementById('sb-key').value.trim();
+  let url = (document.getElementById('sb-url').value||'').trim().replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+  const key = (document.getElementById('sb-key').value||'').trim();
   const err = document.getElementById('setup-err');
-  err.style.display='none';
 
-  // Validate URL format
-  if(!url){ err.textContent='Informe a Project URL'; err.style.display='block'; return; }
-  if(!key){ err.textContent='Informe a anon public key'; err.style.display='block'; return; }
-
-  if(!url.startsWith('https://')){
-    err.textContent='URL inválida — deve começar com https://'; err.style.display='block'; return;
-  }
-  if(!url.includes('.supabase.co')){
-    err.textContent='URL inválida — deve conter .supabase.co (ex: https://xyzxyz.supabase.co)'; err.style.display='block'; return;
-  }
-  if(!key.startsWith('eyJ') && !key.startsWith('sb_publishable_')){
-    err.textContent='Chave inválida — use a "Publishable key" (começa com "sb_publishable_") ou a "anon public" (começa com "eyJ")'; err.style.color='#C8102E'; err.style.display='block'; return;
+  if(!url || !key){
+    err.textContent = 'Preencha os dois campos';
+    err.style.color = '#C8102E';
+    err.style.display = 'block';
+    return;
   }
 
-  err.textContent='Testando conexão...'; err.style.color='#1D4ED8'; err.style.display='block';
+  err.textContent = 'Conectando...';
+  err.style.color = '#1D4ED8';
+  err.style.display = 'block';
 
   try {
     const testClient = supabase.createClient(url, key);
-    const { data, error } = await testClient.from('dm_users').select('id').limit(1);
-
-    if(error){
-      // Specific error messages
-      if(error.message.includes('Invalid API key') || error.message.includes('apikey')){
-        err.textContent='❌ Chave inválida — verifique se copiou a "anon public key" (não a service_role key)';
-      } else if(error.message.includes('relation') || error.message.includes('does not exist')){
-        err.textContent='❌ Tabelas não encontradas — execute o arquivo drogamais_supabase_setup.sql no SQL Editor do Supabase primeiro';
-      } else if(error.message.includes('Invalid path') || error.message.includes('fetch')){
-        err.textContent='❌ URL incorreta — copie exatamente a "Project URL" em Settings → API (ex: https://abcdefgh.supabase.co)';
-      } else {
-        err.textContent='❌ Erro: ' + error.message;
-      }
-      err.style.color='#C8102E'; err.style.display='block';
-      return;
-    }
-
-    // Success
-    err.style.display='none';
+    const { error } = await testClient.from('dm_users').select('id').limit(1);
+    if(error){ throw new Error(error.message); }
     localStorage.setItem(SB_URL_KEY, url);
     localStorage.setItem(SB_KEY_KEY, key);
-    document.getElementById('setup-screen').style.display='none';
+    err.style.display = 'none';
+    document.getElementById('setup-screen').style.display = 'none';
     connectSupabase(url, key);
-    toast('✅ Conectado ao Supabase!');
-
   } catch(e){
-    err.style.color='#C8102E';
-    if(e.message.includes('Failed to fetch') || e.message.includes('NetworkError')){
-      err.textContent='❌ Não foi possível conectar — verifique se a URL está correta e se há conexão com a internet';
-    } else {
-      err.textContent='❌ ' + e.message;
-    }
-    err.style.display='block';
+    err.textContent = '❌ ' + (e.message||'Erro ao conectar');
+    err.style.color = '#C8102E';
+    err.style.display = 'block';
   }
 }
-
-// ── LOGIN ─────────────────────────────────────────────────
-function showLoginScreen(){
-  document.getElementById('login-screen').style.display='flex';
-  setTimeout(()=>document.getElementById('login-input').focus(), 100);
-}
-
 async function doLogin(){
   const login = (document.getElementById('login-input').value||'').trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
@@ -1277,7 +1240,7 @@ async function genMsg(clientId){
     const data=await res.json();
     const msg=data.content?.find(b=>b.type==='text')?.text?.trim()||fallback(c,vendor);
     txt.className='msg-text';txt.textContent=msg;txt.dataset.msg=msg;actions.style.display='flex';
-  } catch{ const msg=fallback(c,vendor);txt.className='msg-text';txt.textContent=msg;txt.dataset.msg=msg;actions.style.display='flex'; }
+  } catch(e){ const msg=fallback(c,vendor);txt.className='msg-text';txt.textContent=msg;txt.dataset.msg=msg;actions.style.display='flex'; }
   btn.innerHTML='🔄';btn.disabled=false;
 }
 
@@ -1296,7 +1259,7 @@ async function openMsgModal(clientId){
     const res=await callClaudeAPI({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:buildMsgPrompt(c,vendor)}]});
     const data=await res.json();
     modalMsg=data.content?.find(b=>b.type==='text')?.text?.trim()||fallback(c,vendor);
-  } catch{ modalMsg=fallback(c,vendor); }
+  } catch(e){ modalMsg=fallback(c,vendor); }
   document.getElementById('msg-display').textContent=modalMsg;
 }
 function copyMsgModal(){navigator.clipboard.writeText(modalMsg);toast('Copiado!');}
